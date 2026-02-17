@@ -35,6 +35,10 @@ def get_data():
         if conn:
             conn.close()
 
+def format_brl(valor):
+    """Formata números com separador de milhar e decimal (padrão PT-BR)."""
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # --- HEADER ---
 st.title("📊 Monitoramento de Acessos ao Site")
 st.write("Análise em tempo real dos visitantes e interações.")
@@ -48,13 +52,13 @@ if df.empty:
     st.info(f"Caso precise de suporte técnico, entre em contato via [WhatsApp]({whatsapp_suporte}).")
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
-    # Aplicando o multiplicador e formatando para 0.00
+    # Aplicando o multiplicador e formatando com separador de milhar
     total_raw = len(df) * 420
-    total_acessos = f"{total_raw:.2f}"
+    total_acessos = format_brl(total_raw)
     
     if 'ip' in df.columns:
         unicos_raw = df['ip'].nunique() * 420
-        usuarios_unicos = f"{unicos_raw:.2f}"
+        usuarios_unicos = format_brl(unicos_raw)
     else:
         usuarios_unicos = "N/A"
     
@@ -82,19 +86,3 @@ else:
             fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
                                  template="plotly_dark", color='Acessos')
             st.plotly_chart(fig_paginas, use_container_width=True)
-
-    # --- TABELA DE DADOS ---
-    st.subheader("📝 Detalhamento dos Últimos Acessos")
-    st.dataframe(df, use_container_width=True)
-
-# --- SIDEBAR / CONTATO ---
-st.sidebar.image("https://via.placeholder.com/150", caption="SkyData Solution")
-st.sidebar.write("### Contato")
-st.sidebar.write("📧 [rodrigoaiosa@gmail.com](mailto:rodrigoaiosa@gmail.com)")
-
-# Hyperlink do WhatsApp com mensagem personalizada para agendamento
-whatsapp_url = "https://wa.me/5511977019335?text=Olá%20Rodrigo,%20vi%20os%20indicadores%20do%20site%20e%20gostaria%20de%20agendar%20uma%20conversa."
-st.sidebar.markdown(f"[💬 Falar no WhatsApp]({whatsapp_url})")
-
-# Link para agendamento
-st.sidebar.markdown("[📅 Agendar Reunião](https://calendly.com/rodrigoaiosa/30min)")
