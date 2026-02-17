@@ -30,18 +30,27 @@ def get_data():
         df = pd.read_sql(query, conn)
         
         if not df.empty and 'data_hora' in df.columns:
-            # Converte para datetime
             df['data_hora'] = pd.to_datetime(df['data_hora'])
             
-            # Se os dados vierem sem fuso (naive), localizamos como UTC e convertemos para Brasília
-            # Se já vierem com fuso, apenas convertemos
             if df['data_hora'].dt.tz is None:
                 df['data_hora'] = df['data_hora'].dt.tz_localize('UTC').dt.tz_convert(fuso_br)
             else:
                 df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
                 
-            # Remove a informação de fuso para exibição limpa na tabela (opcional)
             df['data_hora'] = df['data_hora'].dt.tz_localize(None)
+            
+            # Colunas auxiliares para filtros
+            df['Ano'] = df['data_hora'].dt.year
+            df['Mes_Nome'] = df['data_hora'].dt.strftime('%B') # Nome do mês em inglês (padrão pandas)
+            
+            # Dicionário para tradução manual dos meses (opcional, para melhor UX)
+            meses_traducao = {
+                'January': 'Janeiro', 'February': 'Fevereiro', 'March': 'Março',
+                'April': 'Abril', 'May': 'Maio', 'June': 'Junho',
+                'July': 'Julho', 'August': 'Agosto', 'September': 'Setembro',
+                'October': 'Outubro', 'November': 'Novembro', 'December': 'Dezembro'
+            }
+            df['Mês'] = df['Mes_Nome'].map(meses_traducao)
             
         return df
     except Exception as e:
@@ -56,17 +65,31 @@ st.title("📊 Monitoramento de Acessos ao Site")
 st.write("Análise em tempo real dos visitantes e interações.")
 
 # Busca de dados
-df = get_data()
+df_raw = get_data()
 
-if df.empty:
+if df_raw.empty:
     st.warning("Nenhum dado encontrado na tabela 'controle_acesso_site'.")
-    st.info("Caso precise de suporte técnico, entre em contato via [WhatsApp](https://wa.me/5511977019335?text=Olá%20Rodrigo,%20estou%20com%20problemas%20na%20visualização%20dos%20dados%20do%20dashboard).")
 else:
+    # --- FILTROS NO MENU LATERAL ---
+    st.sidebar.header("Filtros")
+    
+    anos = sorted(df_raw['Ano'].unique(), reverse=True)
+    ano_selecionado = st.sidebar.selectbox("Selecione o Ano", ["Todos"] + list(anos))
+    
+    meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    mes_selecionado = st.sidebar.selectbox("Selecione o Mês", ["Todos"] + meses)
+
+    # Aplicação dos filtros
+    df = df_raw.copy()
+    if ano_selecionado != "Todos":
+        df = df[df['Ano'] == ano_selecionado]
+    if mes_selecionado != "Todos":
+        df = df[df['Mês'] == mes_selecionado]
+
     # --- INDICADORES PRINCIPAIS (KPIs) ---
     total_acessos = len(df)
     usuarios_unicos = df['ip'].nunique() if 'ip' in df.columns else "N/A"
-    
-    # Hora atual em Brasília para o KPI
     agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
     
     col1, col2, col3 = st.columns(3)
@@ -75,36 +98,26 @@ else:
     col3.metric("Última Atualização", agora_br)
 
     # --- GRÁFICOS ---
-    c1, c2 = st.columns(2)
+    if not df.empty:
+        c1, c2 = st.columns(2)
 
-    with c1:
-        st.subheader("📈 Evolução Diária de Acessos")
-        # Criar coluna de data para o agrupamento
-        df['data'] = df['data_hora'].dt.date
-        acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
-        fig_evolucao = px.line(acessos_dia, x='data', y='quantidade', markers=True, 
-                               template="plotly_dark", color_discrete_sequence=['#00CC96'])
-        st.plotly_chart(fig_evolucao, use_container_width=True)
+        with c1:
+            st.subheader("📈 Evolução Diária de Acessos")
+            df['data'] = df['data_hora'].dt.date
+            acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
+            fig_evolucao = px.line(acessos_dia, x='data', y='quantidade', markers=True, 
+                                   template="plotly_dark", color_discrete_sequence=['#00CC96'])
+            st.plotly_chart(fig_evolucao, use_container_width=True)
 
-    with c2:
-        st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
-        if 'pagina' in df.columns:
-            top_paginas = df['pagina'].value_counts().reset_index()
-            top_paginas.columns = ['Página', 'Acessos']
-            fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
-                                 template="plotly_dark", color='Acessos')
-            st.plotly_chart(fig_paginas, use_container_width=True)
+        with c2:
+            st.subheader("🌍 Origem dos Acessos")
+            if 'pagina' in df.columns:
+                top_paginas = df['pagina'].value_counts().reset_index()
+                top_paginas.columns = ['Página', 'Acessos']
+                fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
+                                     template="plotly_dark", color='Acessos')
+                st.plotly_chart(fig_paginas, use_container_width=True)
+    else:
+        st.info("Nenhum dado disponível para os filtros selecionados.")
 
-    # --- TABELA DE DADOS ---
-    st.subheader("📝 Detalhamento dos Últimos Acessos")
-    st.dataframe(df, use_container_width=True)
-
-# --- RODAPÉ PERSONALIZADO ---
-st.sidebar.image("https://via.placeholder.com/150", caption="SkyData Solution")
-st.sidebar.write("### Contato")
-st.sidebar.write(f"📧 [rodrigoaiosa@gmail.com](mailto:rodrigoaiosa@gmail.com)")
-
-# Links de contato conforme diretrizes
-wa_msg = "Olá Rodrigo, gostaria de conversar sobre a análise de dados do meu site."
-st.sidebar.markdown(f"[💬 Falar no WhatsApp](https://wa.me/5511977019335?text={wa_msg.replace(' ', '%20')})")
-st.sidebar.markdown("[📅 Agendar Reunião](https://calendly.com/rodrigoaiosa/30min)")
+# Nota: O detalhamento da tabela e os itens de contato do sidebar foram removidos conforme solicitado.
