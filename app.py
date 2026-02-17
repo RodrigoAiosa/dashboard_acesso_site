@@ -48,7 +48,7 @@ if df.empty:
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
     total_acessos = len(df) * 42
-    usuarios_unicos = df['ip'].nunique() if 'ip' in df.columns else "N/A" 
+    usuarios_unicos = df['ip'].nunique() * 42 if 'ip' in df.columns else "N/A" 
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Acessos", total_acessos)
