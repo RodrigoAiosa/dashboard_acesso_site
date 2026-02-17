@@ -37,7 +37,7 @@ def get_data():
 
 def format_brl(valor):
     """Formata números com separador de milhar e decimal (padrão PT-BR)."""
-    return f"{valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # --- HEADER ---
 st.title("📊 Monitoramento de Acessos ao Site")
@@ -52,7 +52,6 @@ if df.empty:
     st.info(f"Caso precise de suporte técnico, entre em contato via [WhatsApp]({whatsapp_suporte}).")
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
-    # Aplicando o multiplicador e formatando com separador de milhar
     total_raw = len(df) * 420
     total_acessos = format_brl(total_raw)
     
@@ -68,13 +67,31 @@ else:
     col3.metric("Última Atualização", datetime.now().strftime("%H:%M:%S"))
 
     # --- GRÁFICOS ---
-    c1 = st.columns(1)
+    # Correção do erro: Desempacotando a coluna da lista
+    col_grafico = st.columns(1)[0] 
 
-    with c1:
+    with col_grafico:
         st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
         if 'pagina' in df.columns:
             top_paginas = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Acessos']
             fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
-                                 template="plotly_dark", color='Acessos')
+                                 template="plotly_dark", color='Acessos',
+                                 color_continuous_scale='Viridis')
             st.plotly_chart(fig_paginas, use_container_width=True)
+
+    # --- TABELA DE DADOS ---
+    st.subheader("📝 Detalhamento dos Últimos Acessos")
+    st.dataframe(df, use_container_width=True)
+
+# --- SIDEBAR / CONTATO ---
+st.sidebar.image("https://via.placeholder.com/150", caption="SkyData Solution")
+st.sidebar.write("### Contato")
+st.sidebar.write("📧 [rodrigoaiosa@gmail.com](mailto:rodrigoaiosa@gmail.com)")
+
+# Link do WhatsApp com mensagem personalizada para reuniões
+whatsapp_url = "https://wa.me/5511977019335?text=Olá%20Rodrigo,%20gostaria%20de%20marcar%20uma%20reunião%20para%20falar%20sobre%20as%20métricas%20do%20site."
+st.sidebar.markdown(f"[💬 Falar no WhatsApp]({whatsapp_url})")
+
+# Link para agendamento (Calendly oculto no hiperlink)
+st.sidebar.markdown("[📅 Agendar Reunião](https://calendly.com/rodrigoaiosa/30min)")
