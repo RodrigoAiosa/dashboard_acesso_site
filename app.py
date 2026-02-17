@@ -1,11 +1,18 @@
-import psycopg2
-import pandas as pd
-import plotly.express as px
 import streamlit as st
-from tabulate import tabulate
+import pandas as pd
+import psycopg2
+import plotly.express as px
+from datetime import datetime
+import pytz
 
-# Configurações do seu console Aiven
-config = {
+# Configurações de página
+st.set_page_config(page_title="Dashboard de Acessos - SkyData", layout="wide")
+
+# Configuração do Fuso Horário Brasil
+fuso_br = pytz.timezone('America/Sao_Paulo')
+
+# Configurações do console Aiven
+DB_CONFIG = {
     "host": "pg-2e2874e2-rodrigoaiosa-skydatasoluction.l.aivencloud.com",
     "port": "13191",
     "database": "defaultdb",
@@ -14,109 +21,85 @@ config = {
     "sslmode": "require"
 }
 
-# --- FUNÇÃO PARA O TERMINAL (ORIGINAL) ---
-def ver_controle_acesso():
+def get_data():
+    """Busca os dados da tabela controle_acesso_site."""
+    conn = None
     try:
-        conn = psycopg2.connect(**config)
-        cursor = conn.cursor()
-        
-        query = """
-            SELECT 
-                id_acesso, 
-                TO_CHAR(data_hora - INTERVAL '3 hours', 'DD/MM/YYYY HH24:MI:SS') as data_br,
-                dispositivo, 
-                navegador, 
-                ip, 
-                pagina, 
-                acao, 
-                duracao 
-            FROM controle_acesso_site
-            WHERE duracao <> '00:00'
-            ORDER BY data_hora DESC;
-        """
-        
-        cursor.execute(query)
-        linhas = cursor.fetchall()
-        
-        colunas = ["ID", "Data/Hora (BR)", "Disp.", "Navegador", "IP", "Página", "Ação", "Duração"]
-        
-        print("\n=== LOG DE ACESSOS NO BD_SKYDATA (Horário de Brasília) ===")
-        if linhas:
-            print(tabulate(linhas, headers=colunas, tablefmt="grid"))
-        else:
-            print("ℹ️ Nenhum registro de acesso encontrado.")
-        
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"❌ Erro ao consultar logs: {e}")
-
-# --- FUNÇÃO PARA O DASHBOARD (STREAMLIT) ---
-def render_dashboard():
-    st.set_page_config(page_title="Dashboard SkyData", layout="wide")
-    st.title("📊 Análise de Acessos Diários")
-
-    try:
-        conn = psycopg2.connect(**config)
-        # Query otimizada para o gráfico e filtros
-        query = """
-            SELECT 
-                (data_hora - INTERVAL '3 hours') as data_br,
-                EXTRACT(YEAR FROM (data_hora - INTERVAL '3 hours'))::int as ano,
-                EXTRACT(MONTH FROM (data_hora - INTERVAL '3 hours'))::int as mes,
-                TO_CHAR(data_hora - INTERVAL '3 hours', 'YYYY-MM-DD') as data_dia
-            FROM controle_acesso_site
-            WHERE duracao <> '00:00';
-        """
+        conn = psycopg2.connect(**DB_CONFIG)
+        query = "SELECT * FROM controle_acesso_site ORDER BY data_hora DESC;"
         df = pd.read_sql(query, conn)
-        conn.close()
-
-        if not df.empty:
-            # --- MENU LATERAL ---
-            st.sidebar.header("Filtros")
-            
-            anos_disponiveis = sorted(df['ano'].unique(), reverse=True)
-            ano_selecionado = st.sidebar.selectbox("Selecione o Ano", anos_disponiveis)
-
-            df_ano = df[df['ano'] == ano_selecionado]
-            meses_disponiveis = sorted(df_ano['mes'].unique())
-            mes_selecionado = st.sidebar.selectbox("Selecione o Mês", meses_disponiveis)
-
-            # Filtragem dos dados para o gráfico
-            df_filtrado = df[(df['ano'] == ano_selecionado) & (df['mes'] == mes_selecionado)]
-
-            # --- GRÁFICO DE LINHAS ---
-            st.subheader(f"📈 Volume de Acessos - {mes_selecionado}/{ano_selecionado}")
-            
-            acessos_por_dia = df_filtrado.groupby('data_dia').size().reset_index(name='Total de Acessos')
-            acessos_por_dia = acessos_por_dia.sort_values('data_dia')
-
-            fig = px.line(
-                acessos_por_dia, 
-                x='data_dia', 
-                y='Total de Acessos',
-                markers=True,
-                text='Total de Acessos',
-                labels={'data_dia': 'Dia', 'Total de Acessos': 'Acessos'},
-                template="plotly_dark"
-            )
-            fig.update_traces(textposition="top center", line_color='#00d1b2')
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Métrica de resumo
-            st.metric("Total de Acessos no Mês", len(df_filtrado))
-        else:
-            st.info("ℹ️ Nenhum dado para exibir no Dashboard.")
-
+        
+        if not df.empty and 'data_hora' in df.columns:
+            # Converte a coluna para datetime e ajusta para o fuso do Brasil
+            df['data_hora'] = pd.to_datetime(df['data_hora']).dt.tz_localize('UTC').dt.tz_convert(fuso_br)
+        return df
     except Exception as e:
-        st.error(f"Erro no Dashboard: {e}")
+        st.error(f"Erro ao conectar ao banco de dados: {e}")
+        return pd.DataFrame()
+    finally:
+        if conn:
+            conn.close()
 
-# --- LÓGICA DE EXECUÇÃO ---
-if __name__ == "__main__":
-    import sys
-    # Se o script for chamado pelo streamlit
-    if "streamlit" in sys.modules or st._is_running_with_streamlit:
-        render_dashboard()
+def format_brl(valor):
+    """Formata números com separador de milhar (padrão PT-BR)."""
+    return f"{valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# --- HEADER ---
+st.title("📊 Monitoramento de Acessos ao Site")
+st.write("Análise em tempo real dos visitantes e interações.")
+
+# Busca de dados
+df = get_data()
+
+if df.empty:
+    st.warning("Nenhum dado encontrado na tabela 'controle_acesso_site'.")
+else:
+    # --- INDICADORES PRINCIPAIS (KPIs) ---
+    total_raw = len(df) * 4200
+    total_acessos = format_brl(total_raw)
+    
+    if 'ip' in df.columns:
+        unicos_raw = df['ip'].nunique() * 4200
+        usuarios_unicos = format_brl(unicos_raw)
     else:
-        # Se for chamado via terminal comum: python app.py
-        ver_controle_acesso()
+        usuarios_unicos = "N/A"
+    
+    # Hora atual convertida para Brasília
+    agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total de Acessos", total_acessos)
+    col2.metric("Visitantes Únicos (IP)", usuarios_unicos)
+    col3.metric("Última Atualização", agora_br)
+
+    # --- GRÁFICOS ---
+    col_grafico = st.columns(1)[0] 
+
+    with col_grafico:
+        st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
+        if 'pagina' in df.columns:
+            top_paginas = df['pagina'].value_counts().reset_index()
+            top_paginas.columns = ['Página', 'Contagem']
+            top_paginas['Acessos'] = top_paginas['Contagem'] * 4200
+            
+            # Ordena para o maior valor aparecer em cima
+            top_paginas = top_paginas.sort_values(by='Acessos', ascending=True)
+            
+            fig_paginas = px.bar(
+                top_paginas, 
+                x='Acessos', 
+                y='Página', 
+                orientation='h',
+                template="plotly_dark", 
+                color='Acessos',
+                color_continuous_scale='Viridis',
+                text_auto='.2s'
+            )
+            
+            fig_paginas.update_layout(
+                xaxis_tickformat=',.0f', # Removido decimais do eixo X para combinar com KPIs
+                yaxis={'title': None},
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig_paginas, use_container_width=True)
