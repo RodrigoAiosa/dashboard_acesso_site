@@ -118,22 +118,8 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- GRÁFICOS ---
+    # --- GRÁFICO DE ORIGEM (ÚNICO GRÁFICO EXIBIDO) ---
     if not df.empty:
-        # 1. Gráfico de Evolução
-        st.subheader("📈 Performance de Acessos")
-        df['data'] = df['data_hora'].dt.date
-        acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
-        acessos_dia['quantidade'] = acessos_dia['quantidade'] * 4200
-        
-        fig_evolucao = px.area(acessos_dia, x='data', y='quantidade', 
-                               template="plotly_dark", color_discrete_sequence=['#00CC96'])
-        fig_evolucao.update_layout(xaxis_title=None, yaxis_title=None, margin=dict(l=20, r=20, t=20, b=20))
-        st.plotly_chart(fig_evolucao, use_container_width=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # 2. Gráfico de Origem (Ajustado conforme pedido)
         st.subheader("🌍 Origem por Canal/Página")
         if 'pagina' in df.columns:
             top_paginas = df['pagina'].value_counts().reset_index()
