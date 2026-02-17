@@ -30,8 +30,15 @@ def get_data():
         df = pd.read_sql(query, conn)
         
         if not df.empty and 'data_hora' in df.columns:
-            # Converte a coluna para datetime e ajusta para o fuso do Brasil
-            df['data_hora'] = pd.to_datetime(df['data_hora']).dt.tz_localize('UTC').dt.tz_convert(fuso_br)
+            # Converte para datetime
+            df['data_hora'] = pd.to_datetime(df['data_hora'])
+            
+            # Verifica se já tem fuso horário para evitar o erro "Already tz-aware"
+            if df['data_hora'].dt.tz is None:
+                df['data_hora'] = df['data_hora'].dt.tz_localize('UTC').dt.tz_convert(fuso_br)
+            else:
+                df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
+                
         return df
     except Exception as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
@@ -55,6 +62,7 @@ if df.empty:
     st.warning("Nenhum dado encontrado na tabela 'controle_acesso_site'.")
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
+    # Multiplicador 4200 aplicado a todos os indicadores
     total_raw = len(df) * 4200
     total_acessos = format_brl(total_raw)
     
@@ -64,7 +72,7 @@ else:
     else:
         usuarios_unicos = "N/A"
     
-    # Hora atual convertida para Brasília
+    # Hora atual em Brasília
     agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
     
     col1, col2, col3 = st.columns(3)
@@ -80,9 +88,11 @@ else:
         if 'pagina' in df.columns:
             top_paginas = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Contagem']
+            
+            # Multiplicador 4200 também nos dados do gráfico
             top_paginas['Acessos'] = top_paginas['Contagem'] * 4200
             
-            # Ordena para o maior valor aparecer em cima
+            # Ordenação: Maior valor no topo
             top_paginas = top_paginas.sort_values(by='Acessos', ascending=True)
             
             fig_paginas = px.bar(
@@ -97,7 +107,7 @@ else:
             )
             
             fig_paginas.update_layout(
-                xaxis_tickformat=',.0f', # Removido decimais do eixo X para combinar com KPIs
+                xaxis_tickformat=',.0f',
                 yaxis={'title': None},
                 showlegend=False
             )
