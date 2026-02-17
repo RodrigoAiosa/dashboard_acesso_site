@@ -66,15 +66,28 @@ else:
     col3.metric("Última Atualização", datetime.now().strftime("%H:%M:%S"))
 
     # --- GRÁFICOS ---
-    # Centralizando o gráfico de origem em uma única coluna
     col_grafico = st.columns(1)[0] 
 
     with col_grafico:
         st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
         if 'pagina' in df.columns:
+            # Agrupa e aplica a multiplicação por 4200 nos dados do gráfico também
             top_paginas = df['pagina'].value_counts().reset_index()
-            top_paginas.columns = ['Página', 'Acessos']
-            fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
-                                 template="plotly_dark", color='Acessos',
-                                 color_continuous_scale='Viridis')
+            top_paginas.columns = ['Página', 'Contagem']
+            top_paginas['Acessos'] = top_paginas['Contagem'] * 4200
+            
+            fig_paginas = px.bar(
+                top_paginas, 
+                x='Acessos', 
+                y='Página', 
+                orientation='h',
+                template="plotly_dark", 
+                color='Acessos',
+                color_continuous_scale='Viridis',
+                text_auto='.2s' # Adiciona o valor formatado nas barras
+            )
+            
+            # Ajuste para garantir que o separador de milhar apareça no eixo X do gráfico
+            fig_paginas.update_layout(xaxis_tickformat=',.2f')
+            
             st.plotly_chart(fig_paginas, use_container_width=True)
