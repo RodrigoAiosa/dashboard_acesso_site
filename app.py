@@ -75,10 +75,6 @@ else:
                                  template="plotly_dark", color='Acessos')
             st.plotly_chart(fig_paginas, use_container_width=True)
 
-    # --- TABELA DE DADOS ---
-    st.subheader("📝 Detalhamento dos Últimos Acessos")
-    st.dataframe(df, use_container_width=True)
-
 # --- RODAPÉ PERSONALIZADO ---
 st.sidebar.image("https://via.placeholder.com/150", caption="SkyData Solution") # Substitua pela sua logo se tiver
 st.sidebar.markdown("---")
