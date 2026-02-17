@@ -37,7 +37,7 @@ def get_data():
 
 def format_brl(valor):
     """Formata números com separador de milhar e decimal (padrão PT-BR)."""
-    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # --- HEADER ---
 st.title("📊 Monitoramento de Acessos ao Site")
