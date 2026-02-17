@@ -3,9 +3,13 @@ import pandas as pd
 import psycopg2
 import plotly.express as px
 from datetime import datetime
+import pytz
 
 # Configurações de página
 st.set_page_config(page_title="Dashboard de Acessos - SkyData", layout="wide")
+
+# Configuração do Fuso Horário Brasil
+fuso_br = pytz.timezone('America/Sao_Paulo')
 
 # Configurações do console Aiven
 DB_CONFIG = {
@@ -24,9 +28,10 @@ def get_data():
         conn = psycopg2.connect(**DB_CONFIG)
         query = "SELECT * FROM controle_acesso_site ORDER BY data_hora DESC;"
         df = pd.read_sql(query, conn)
-        # Garantir que a coluna data_hora seja datetime
+        
         if not df.empty and 'data_hora' in df.columns:
-            df['data_hora'] = pd.to_datetime(df['data_hora'])
+            # Converte a coluna para datetime e ajusta para o fuso do Brasil
+            df['data_hora'] = pd.to_datetime(df['data_hora']).dt.tz_localize('UTC').dt.tz_convert(fuso_br)
         return df
     except Exception as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
@@ -36,7 +41,7 @@ def get_data():
             conn.close()
 
 def format_brl(valor):
-    """Formata números com separador de milhar e decimal (padrão PT-BR)."""
+    """Formata números com separador de milhar (padrão PT-BR)."""
     return f"{valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # --- HEADER ---
@@ -59,10 +64,13 @@ else:
     else:
         usuarios_unicos = "N/A"
     
+    # Hora atual convertida para Brasília
+    agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
+    
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Acessos", total_acessos)
     col2.metric("Visitantes Únicos (IP)", usuarios_unicos)
-    col3.metric("Última Atualização", datetime.now().strftime("%H:%M:%S"))
+    col3.metric("Última Atualização", agora_br)
 
     # --- GRÁFICOS ---
     col_grafico = st.columns(1)[0] 
@@ -70,7 +78,6 @@ else:
     with col_grafico:
         st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
         if 'pagina' in df.columns:
-            # Agrupa e aplica a multiplicação
             top_paginas = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Contagem']
             top_paginas['Acessos'] = top_paginas['Contagem'] * 4200
@@ -89,10 +96,9 @@ else:
                 text_auto='.2s'
             )
             
-            # Ajustes visuais: Inverter eixo Y e remover o rótulo "Página"
             fig_paginas.update_layout(
-                xaxis_tickformat=',.2f',
-                yaxis={'title': None}, # Remove o rótulo "Página"
+                xaxis_tickformat=',.0f', # Removido decimais do eixo X para combinar com KPIs
+                yaxis={'title': None},
                 showlegend=False
             )
             
