@@ -5,10 +5,36 @@ import plotly.express as px
 from datetime import datetime
 import pytz
 
-# Configurações de página
-st.set_page_config(page_title="Dashboard de Acessos - SkyData", layout="wide")
+# --- CONFIGURAÇÕES DE PÁGINA ---
+st.set_page_config(page_title="SkyData | Analytics Portal", layout="wide", initial_sidebar_state="expanded")
 
-# Configurações do console Aiven
+# CSS Personalizado para estilo Landing Page
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #00CC96;
+    }
+    .stMetric {
+        background-color: #1e2130;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        border: 1px solid #31333f;
+    }
+    /* Estilização dos containers de gráfico */
+    .plot-container {
+        border-radius: 15px;
+        padding: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Configurações do banco de dados
 DB_CONFIG = {
     "host": "pg-2e2874e2-rodrigoaiosa-skydatasoluction.l.aivencloud.com",
     "port": "13191",
@@ -18,11 +44,9 @@ DB_CONFIG = {
     "sslmode": "require"
 }
 
-# Definição do fuso horário de Brasília
 fuso_br = pytz.timezone('America/Sao_Paulo')
 
 def get_data():
-    """Busca os dados da tabela controle_acesso_site e ajusta o fuso horário."""
     conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
@@ -31,19 +55,15 @@ def get_data():
         
         if not df.empty and 'data_hora' in df.columns:
             df['data_hora'] = pd.to_datetime(df['data_hora'])
-            
             if df['data_hora'].dt.tz is None:
                 df['data_hora'] = df['data_hora'].dt.tz_localize('UTC').dt.tz_convert(fuso_br)
             else:
                 df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
-                
             df['data_hora'] = df['data_hora'].dt.tz_localize(None)
             
-            # Colunas auxiliares para filtros
+            # Auxiliares de tempo
             df['Ano'] = df['data_hora'].dt.year
-            df['Mes_Nome'] = df['data_hora'].dt.strftime('%B') # Nome do mês em inglês (padrão pandas)
-            
-            # Dicionário para tradução manual dos meses (opcional, para melhor UX)
+            df['Mes_Nome'] = df['data_hora'].dt.strftime('%B')
             meses_traducao = {
                 'January': 'Janeiro', 'February': 'Fevereiro', 'March': 'Março',
                 'April': 'Abril', 'May': 'Maio', 'June': 'Junho',
@@ -51,73 +71,92 @@ def get_data():
                 'October': 'Outubro', 'November': 'Novembro', 'December': 'Dezembro'
             }
             df['Mês'] = df['Mes_Nome'].map(meses_traducao)
-            
         return df
     except Exception as e:
-        st.error(f"Erro ao conectar ao banco de dados: {e}")
+        st.error(f"Erro na conexão: {e}")
         return pd.DataFrame()
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-# --- HEADER ---
-st.title("📊 Monitoramento de Acessos ao Site")
-st.write("Análise em tempo real dos visitantes e interações.")
+# --- HEADER TIPO LANDING PAGE ---
+st.title("📊 SkyData Analytics")
+st.markdown("#### Inteligência de dados para performance digital em tempo real.")
+st.write("---")
 
-# Busca de dados
 df_raw = get_data()
 
 if df_raw.empty:
-    st.warning("Nenhum dado encontrado na tabela 'controle_acesso_site'.")
+    st.warning("Aguardando dados da SkyData Solution...")
 else:
     # --- FILTROS NO MENU LATERAL ---
-    st.sidebar.header("Filtros")
-    
+    st.sidebar.header("🔍 Filtros de Visualização")
     anos = sorted(df_raw['Ano'].unique(), reverse=True)
-    ano_selecionado = st.sidebar.selectbox("Selecione o Ano", ["Todos"] + list(anos))
+    ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + list(anos))
     
-    meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
-             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-    mes_selecionado = st.sidebar.selectbox("Selecione o Mês", ["Todos"] + meses)
+    meses_ordem = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    mes_selecionado = st.sidebar.selectbox("Mês", ["Todos"] + meses_ordem)
 
-    # Aplicação dos filtros
     df = df_raw.copy()
     if ano_selecionado != "Todos":
         df = df[df['Ano'] == ano_selecionado]
     if mes_selecionado != "Todos":
         df = df[df['Mês'] == mes_selecionado]
 
-    # --- INDICADORES PRINCIPAIS (KPIs) ---
+    # --- INDICADORES (KPIs) EM CONTAINERS ---
     total_acessos = len(df)
-    usuarios_unicos = df['ip'].nunique() if 'ip' in df.columns else "N/A"
+    usuarios_unicos = df['ip'].nunique() if 'ip' in df.columns else 0
     agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
-    
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total de Acessos", total_acessos)
-    col2.metric("Visitantes Únicos (IP)", usuarios_unicos)
-    col3.metric("Última Atualização", agora_br)
+    
+    with col1:
+        with st.container():
+            st.metric("Volume de Tráfego", f"{total_acessos:,}".replace(',', '.'))
+    
+    with col2:
+        with st.container():
+            st.metric("Usuários Únicos", f"{usuarios_unicos:,}".replace(',', '.'))
+            
+    with col3:
+        with st.container():
+            st.metric("Live Sync (BR)", agora_br)
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # --- GRÁFICOS ---
     if not df.empty:
-        c1, c2 = st.columns(2)
+        # 1. Gráfico de Evolução (Em cima)
+        st.subheader("📈 Performance de Acessos")
+        df['data'] = df['data_hora'].dt.date
+        acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
+        fig_evolucao = px.area(acessos_dia, x='data', y='quantidade', 
+                               template="plotly_dark", color_discrete_sequence=['#00CC96'])
+        fig_evolucao.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(fig_evolucao, use_container_width=True)
 
-        with c1:
-            st.subheader("📈 Evolução Diária de Acessos")
-            df['data'] = df['data_hora'].dt.date
-            acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
-            fig_evolucao = px.line(acessos_dia, x='data', y='quantidade', markers=True, 
-                                   template="plotly_dark", color_discrete_sequence=['#00CC96'])
-            st.plotly_chart(fig_evolucao, use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        with c2:
-            st.subheader("🌍 Origem dos Acessos")
-            if 'pagina' in df.columns:
-                top_paginas = df['pagina'].value_counts().reset_index()
-                top_paginas.columns = ['Página', 'Acessos']
-                fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
-                                     template="plotly_dark", color='Acessos')
-                st.plotly_chart(fig_paginas, use_container_width=True)
+        # 2. Gráfico de Origem (Em baixo com eixo invertido)
+        st.subheader("🌍 Origem por Canal/Página")
+        if 'pagina' in df.columns:
+            top_paginas = df['pagina'].value_counts().reset_index()
+            top_paginas.columns = ['Página', 'Acessos']
+            
+            # Eixo invertido: X como Página e Y como Acessos (Gráfico de barras vertical)
+            fig_paginas = px.bar(top_paginas, x='Página', y='Acessos',
+                                 template="plotly_dark", color='Acessos',
+                                 color_continuous_scale='Viridis')
+            
+            fig_paginas.update_layout(
+                xaxis_title="Página Acessada",
+                yaxis_title="Total de Visitas",
+                margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="rgba(0,0,0,0)"
+            )
+            st.plotly_chart(fig_paginas, use_container_width=True)
     else:
-        st.info("Nenhum dado disponível para os filtros selecionados.")
+        st.info("Nenhum dado encontrado para o período selecionado.")
 
-# Nota: O detalhamento da tabela e os itens de contato do sidebar foram removidos conforme solicitado.
+# Rodapé simples
+st.markdown("<div style='text-align: center; color: #555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
