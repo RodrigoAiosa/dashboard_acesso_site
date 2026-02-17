@@ -7,7 +7,7 @@ from datetime import datetime
 # Configurações de página
 st.set_page_config(page_title="Dashboard de Acessos - SkyData", layout="wide")
 
-# Configurações do console Aiven (conforme fornecido)
+# Configurações do console Aiven
 DB_CONFIG = {
     "host": "pg-2e2874e2-rodrigoaiosa-skydatasoluction.l.aivencloud.com",
     "port": "13191",
@@ -44,11 +44,19 @@ df = get_data()
 
 if df.empty:
     st.warning("Nenhum dado encontrado na tabela 'controle_acesso_site'.")
-    st.info("Caso precise de suporte técnico, entre em contato via [WhatsApp](https://wa.me/5511977019335?text=Olá%20Rodrigo,%20estou%20com%20dúvidas%20sobre%20o%20dashboard%20de%20acessos).")
+    whatsapp_suporte = "https://wa.me/5511977019335?text=Olá%20Rodrigo,%20o%20dashboard%20está%20vazio%20e%20preciso%20de%20ajuda."
+    st.info(f"Caso precise de suporte técnico, entre em contato via [WhatsApp]({whatsapp_suporte}).")
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
-    total_acessos = len(df) * 420
-    usuarios_unicos = df['ip'].nunique() * 420 if 'ip' in df.columns else "N/A" 
+    # Aplicando o multiplicador e formatando para 0.00
+    total_raw = len(df) * 420
+    total_acessos = f"{total_raw:.2f}"
+    
+    if 'ip' in df.columns:
+        unicos_raw = df['ip'].nunique() * 420
+        usuarios_unicos = f"{unicos_raw:.2f}"
+    else:
+        usuarios_unicos = "N/A"
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Acessos", total_acessos)
@@ -75,15 +83,18 @@ else:
                                  template="plotly_dark", color='Acessos')
             st.plotly_chart(fig_paginas, use_container_width=True)
 
-# --- RODAPÉ PERSONALIZADO ---
-st.sidebar.image("https://via.placeholder.com/150", caption="SkyData Solution") # Substitua pela sua logo se tiver
-st.sidebar.markdown("---")
+    # --- TABELA DE DADOS ---
+    st.subheader("📝 Detalhamento dos Últimos Acessos")
+    st.dataframe(df, use_container_width=True)
+
+# --- SIDEBAR / CONTATO ---
+st.sidebar.image("https://via.placeholder.com/150", caption="SkyData Solution")
 st.sidebar.write("### Contato")
 st.sidebar.write("📧 [rodrigoaiosa@gmail.com](mailto:rodrigoaiosa@gmail.com)")
 
-# Link do WhatsApp personalizado conforme solicitado
-whatsapp_url = "https://wa.me/5511977019335?text=Olá%20Rodrigo,%20gostaria%20de%20agendar%20uma%20reunião%20sobre%20os%20indicadores%20do%20site."
+# Hyperlink do WhatsApp com mensagem personalizada para agendamento
+whatsapp_url = "https://wa.me/5511977019335?text=Olá%20Rodrigo,%20vi%20os%20indicadores%20do%20site%20e%20gostaria%20de%20agendar%20uma%20conversa."
 st.sidebar.markdown(f"[💬 Falar no WhatsApp]({whatsapp_url})")
 
-# Link do Calendly (Apenas Hiperlink, conforme regra de não mencionar o nome diretamente no texto)
+# Link para agendamento
 st.sidebar.markdown("[📅 Agendar Reunião](https://calendly.com/rodrigoaiosa/30min)")
