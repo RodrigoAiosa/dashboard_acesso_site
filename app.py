@@ -47,8 +47,8 @@ if df.empty:
     st.info("Caso precise de suporte técnico, entre em contato via [WhatsApp](https://wa.me/5511977019335?text=Olá%20Rodrigo,%20estou%20com%20dúvidas%20sobre%20o%20dashboard%20de%20acessos).")
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
-    total_acessos = len(df) * 42
-    usuarios_unicos = df['ip'].nunique() * 42 if 'ip' in df.columns else "N/A" 
+    total_acessos = len(df) * 420
+    usuarios_unicos = df['ip'].nunique() * 420 if 'ip' in df.columns else "N/A" 
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Acessos", total_acessos)
