@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÕES DE PÁGINA ---
 st.set_page_config(page_title="SkyData | Analytics Portal", layout="wide", initial_sidebar_state="expanded")
 
-# CSS Personalizado para estilo Landing Page
+num = 4200
 st.markdown("""
     <style>
     .main {
@@ -104,8 +104,8 @@ else:
         df = df[df['Mês'] == mes_selecionado]
 
     # --- INDICADORES (KPIs) ---
-    total_acessos_calc = len(df) * 4200
-    usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * 4200
+    total_acessos_calc = len(df) * num
+    usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * num
     agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
 
     col1, col2, col3 = st.columns(3)
@@ -124,7 +124,7 @@ else:
         if 'pagina' in df.columns:
             top_paginas = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Acessos']
-            top_paginas['Acessos'] = top_paginas['Acessos'] * 4200
+            top_paginas['Acessos'] = top_paginas['Acessos'] * num
             
             # Cálculo de porcentagem
             total_geral = top_paginas['Acessos'].sum()
