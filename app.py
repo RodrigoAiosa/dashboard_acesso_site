@@ -2,6 +2,7 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 import plotly.express as px
+from tabulate import tabulate
 
 # Configurações do seu console Aiven
 config = {
@@ -16,13 +17,19 @@ config = {
 def get_data():
     try:
         conn = psycopg2.connect(**config)
-        # Query com ajuste de -3h para fuso de Brasília e suporte para filtros
+        # SQL com correção de fuso (-3h) e colunas para filtros
         query = """
             SELECT 
                 (data_hora - INTERVAL '3 hours') as data_br,
                 EXTRACT(YEAR FROM (data_hora - INTERVAL '3 hours'))::int as ano,
                 EXTRACT(MONTH FROM (data_hora - INTERVAL '3 hours'))::int as mes,
                 TO_CHAR(data_hora - INTERVAL '3 hours', 'YYYY-MM-DD') as data_dia,
+                dispositivo, 
+                navegador, 
+                ip, 
+                pagina, 
+                acao, 
+                duracao,
                 id_acesso
             FROM controle_acesso_site
             WHERE duracao <> '00:00'
@@ -32,15 +39,15 @@ def get_data():
         conn.close()
         return df
     except Exception as e:
-        st.error(f"Erro ao conectar no banco: {e}")
+        st.error(f"❌ Erro ao conectar no banco: {e}")
         return pd.DataFrame()
 
-# Configuração da Página
+# Configuração da Página Streamlit
 st.set_page_config(page_title="Dashboard SkyData", layout="wide")
 
 st.title("📊 Análise de Acessos Diários")
 
-# Busca os dados
+# Busca os dados no Banco
 df = get_data()
 
 if not df.empty:
@@ -50,14 +57,12 @@ if not df.empty:
     anos_disponiveis = sorted(df['ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Selecione o Ano", anos_disponiveis)
 
-    # Filtra os meses disponíveis para o ano selecionado
+    # Filtra meses baseados no ano
     df_ano = df[df['ano'] == ano_selecionado]
     meses_disponiveis = sorted(df_ano['mes'].unique())
-    
-    # Dicionário para exibir nomes dos meses em vez de números, se preferir
     mes_selecionado = st.sidebar.selectbox("Selecione o Mês", meses_disponiveis)
 
-    # Filtrando o DataFrame final para o gráfico
+    # Filtrando o DataFrame para o gráfico
     df_filtrado = df[(df['ano'] == ano_selecionado) & (df['mes'] == mes_selecionado)]
 
     # --- GRÁFICO DE ACESSOS POR DIA ---
@@ -74,18 +79,46 @@ if not df.empty:
             y='Total de Acessos',
             markers=True,
             text='Total de Acessos',
-            labels={'data_dia': 'Dia', 'Total de Acessos': 'Quantidade de Acessos'},
+            labels={'data_dia': 'Dia', 'Total de Acessos': 'Quantidade'},
             template="plotly_dark"
         )
         
         fig.update_traces(textposition="top center", line_color='#00d1b2')
         st.plotly_chart(fig, use_container_width=True)
         
-        # Métrica simples de resumo
+        # Métrica de Resumo
         total_mes = df_filtrado.shape[0]
         st.metric("Total de Acessos no Mês Selecionado", total_mes)
     else:
         st.warning("Não há dados para o período selecionado.")
 
 else:
-    st.info("Nenhum registro de acesso encontrado no banco de dados.")
+    st.info("ℹ️ Nenhum registro de acesso encontrado.")
+
+# Função para manter a compatibilidade com execução via terminal (CLI) se necessário
+def ver_no_terminal():
+    try:
+        conn = psycopg2.connect(**config)
+        cursor = conn.cursor()
+        query = """
+            SELECT 
+                id_acesso, 
+                TO_CHAR(data_hora - INTERVAL '3 hours', 'DD/MM/YYYY HH24:MI:SS') as data_br,
+                dispositivo, navegador, ip, pagina, acao, duracao 
+            FROM controle_acesso_site
+            WHERE duracao <> '00:00'
+            ORDER BY data_hora DESC;
+        """
+        cursor.execute(query)
+        linhas = cursor.fetchall()
+        colunas = ["ID", "Data/Hora (BR)", "Disp.", "Navegador", "IP", "Página", "Ação", "Duração"]
+        if linhas:
+            print(tabulate(linhas, headers=colunas, tablefmt="grid"))
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Erro: {e}")
+
+if __name__ == "__main__":
+    # Para rodar o dashboard, use: streamlit run consultar_controle_acesso_site.py
+    pass
