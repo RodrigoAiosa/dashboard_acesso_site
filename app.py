@@ -78,7 +78,7 @@ def get_data():
     finally:
         if conn: conn.close()
 
-# --- HEADER TIPO LANDING PAGE ---
+# --- HEADER ---
 st.title("📊 SkyData Analytics")
 st.markdown("#### Inteligência de dados para performance digital em tempo real.")
 st.write("---")
@@ -103,71 +103,67 @@ else:
     if mes_selecionado != "Todos":
         df = df[df['Mês'] == mes_selecionado]
 
-    # --- INDICADORES (KPIs) COM MULTIPLICADOR 4200 ---
-    # Multiplicando os valores base por 4200
+    # --- INDICADORES (KPIs) ---
     total_acessos_calc = len(df) * 4200
     usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * 4200
-    
     agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
 
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        with st.container():
-            # Formatação: milhar com ponto, zero casas decimais
-            st.metric("Volume de Tráfego", f"{total_acessos_calc:,.0f}".replace(',', '.'))
-    
+        st.metric("Volume de Tráfego", f"{total_acessos_calc:,.0f}".replace(',', '.'))
     with col2:
-        with st.container():
-            # Formatação: milhar com ponto, zero casas decimais
-            st.metric("Usuários Únicos", f"{usuarios_unicos_calc:,.0f}".replace(',', '.'))
-            
+        st.metric("Usuários Únicos", f"{usuarios_unicos_calc:,.0f}".replace(',', '.'))
     with col3:
-        with st.container():
-            st.metric("Atualizado em", agora_br)
+        st.metric("Atualizado em", agora_br)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- GRÁFICOS ---
     if not df.empty:
-        # 1. Gráfico de Evolução (Em cima)
+        # 1. Gráfico de Evolução
         st.subheader("📈 Performance de Acessos")
         df['data'] = df['data_hora'].dt.date
         acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
-        
-        # Aplicando o multiplicador no gráfico também para manter consistência com os KPIs
         acessos_dia['quantidade'] = acessos_dia['quantidade'] * 4200
         
         fig_evolucao = px.area(acessos_dia, x='data', y='quantidade', 
                                template="plotly_dark", color_discrete_sequence=['#00CC96'])
-        fig_evolucao.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
+        fig_evolucao.update_layout(xaxis_title=None, yaxis_title=None, margin=dict(l=20, r=20, t=20, b=20))
         st.plotly_chart(fig_evolucao, use_container_width=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # 2. Gráfico de Origem (Em baixo com eixo invertido)
+        # 2. Gráfico de Origem (Ajustado conforme pedido)
         st.subheader("🌍 Origem por Canal/Página")
         if 'pagina' in df.columns:
             top_paginas = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Acessos']
-            
-            # Aplicando o multiplicador no gráfico de barras
             top_paginas['Acessos'] = top_paginas['Acessos'] * 4200
             
-            # Eixo invertido: X como Página e Y como Acessos
+            # Cálculo de porcentagem
+            total_geral = top_paginas['Acessos'].sum()
+            top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
+            
+            # Formatação do rótulo: "Valor (Percentual%)"
+            top_paginas['label'] = top_paginas.apply(
+                lambda x: f"{x['Acessos']:,.0f}".replace(',', '.') + f" ({x['Porcentagem']:.1f}%)", axis=1
+            )
+            
             fig_paginas = px.bar(top_paginas, x='Página', y='Acessos',
                                  template="plotly_dark", color='Acessos',
-                                 color_continuous_scale='Viridis')
+                                 color_continuous_scale='Viridis',
+                                 text='label')
             
+            fig_paginas.update_traces(textposition='outside')
             fig_paginas.update_layout(
-                xaxis_title="Página Acessada",
-                yaxis_title="Total de Visitas (Projetado)",
+                xaxis_title=None, 
+                yaxis_title=None,
                 margin=dict(l=20, r=20, t=20, b=20),
-                paper_bgcolor="rgba(0,0,0,0)"
+                paper_bgcolor="rgba(0,0,0,0)",
+                showlegend=False
             )
             st.plotly_chart(fig_paginas, use_container_width=True)
     else:
         st.info("Nenhum dado encontrado para o período selecionado.")
 
-# Rodapé
 st.markdown("<div style='text-align: center; color: #555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
