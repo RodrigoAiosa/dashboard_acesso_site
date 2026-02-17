@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÕES DE PÁGINA ---
 st.set_page_config(page_title="SkyData | Analytics Portal", layout="wide", initial_sidebar_state="expanded")
 
-num = 4242
+num = 1
 st.markdown("""
     <style>
     .main {
