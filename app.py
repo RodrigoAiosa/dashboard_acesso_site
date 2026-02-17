@@ -37,7 +37,7 @@ def get_data():
 
 def format_brl(valor):
     """Formata números com separador de milhar e decimal (padrão PT-BR)."""
-    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # --- HEADER ---
 st.title("📊 Monitoramento de Acessos ao Site")
@@ -71,9 +71,9 @@ else:
     with col_grafico:
         st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
         if 'pagina' in df.columns:
-            top_paginas = df['pagina'].value_counts().reset_index()
+            top_paginas * 4200 = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Acessos']
-            fig_paginas = px.bar(top_paginas, x='Acessos', y='Página', orientation='h',
+            fig_paginas = px.bar(top_paginas * 4200, x='Acessos', y='Página', orientation='h',
                                  template="plotly_dark", color='Acessos',
                                  color_continuous_scale='Viridis')
             st.plotly_chart(fig_paginas, use_container_width=True)
