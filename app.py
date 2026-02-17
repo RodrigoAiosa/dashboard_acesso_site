@@ -16,20 +16,14 @@ config = {
 def get_data():
     try:
         conn = psycopg2.connect(**config)
-        # Query que já traz os dados com fuso de Brasília e colunas de suporte para o filtro
+        # Query com ajuste de -3h para fuso de Brasília e suporte para filtros
         query = """
             SELECT 
-                id_acesso, 
                 (data_hora - INTERVAL '3 hours') as data_br,
                 EXTRACT(YEAR FROM (data_hora - INTERVAL '3 hours'))::int as ano,
                 EXTRACT(MONTH FROM (data_hora - INTERVAL '3 hours'))::int as mes,
                 TO_CHAR(data_hora - INTERVAL '3 hours', 'YYYY-MM-DD') as data_dia,
-                dispositivo, 
-                navegador, 
-                ip, 
-                pagina, 
-                acao, 
-                duracao 
+                id_acesso
             FROM controle_acesso_site
             WHERE duracao <> '00:00'
             ORDER BY data_br DESC;
@@ -44,58 +38,54 @@ def get_data():
 # Configuração da Página
 st.set_page_config(page_title="Dashboard SkyData", layout="wide")
 
-st.title("📊 Controle de Acessos - BD_SKYDATA")
+st.title("📊 Análise de Acessos Diários")
 
 # Busca os dados
 df = get_data()
 
 if not df.empty:
-    # --- MENU LATERAL ---
-    st.sidebar.header("Filtros")
+    # --- MENU LATERAL (FILTROS) ---
+    st.sidebar.header("Filtros de Período")
     
     anos_disponiveis = sorted(df['ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Selecione o Ano", anos_disponiveis)
 
-    meses_disponiveis = sorted(df[df['ano'] == ano_selecionado]['mes'].unique())
+    # Filtra os meses disponíveis para o ano selecionado
+    df_ano = df[df['ano'] == ano_selecionado]
+    meses_disponiveis = sorted(df_ano['mes'].unique())
+    
+    # Dicionário para exibir nomes dos meses em vez de números, se preferir
     mes_selecionado = st.sidebar.selectbox("Selecione o Mês", meses_disponiveis)
 
-    # Filtrando o DataFrame com base na escolha do usuário
+    # Filtrando o DataFrame final para o gráfico
     df_filtrado = df[(df['ano'] == ano_selecionado) & (df['mes'] == mes_selecionado)]
 
     # --- GRÁFICO DE ACESSOS POR DIA ---
-    st.subheader(f"📈 Acessos Diários - {mes_selecionado}/{ano_selecionado}")
-    
-    # Agrupando acessos por dia
-    acessos_por_dia = df_filtrado.groupby('data_dia').size().reset_index(name='Total de Acessos')
-    acessos_por_dia = acessos_por_dia.sort_values('data_dia')
+    if not df_filtrado.empty:
+        st.subheader(f"📈 Volume de Acessos em {mes_selecionado}/{ano_selecionado}")
+        
+        # Agrupando acessos por dia
+        acessos_por_dia = df_filtrado.groupby('data_dia').size().reset_index(name='Total de Acessos')
+        acessos_por_dia = acessos_por_dia.sort_values('data_dia')
 
-    fig = px.line(
-        acessos_por_dia, 
-        x='data_dia', 
-        y='Total de Acessos',
-        markers=True,
-        labels={'data_dia': 'Dia do Acesso', 'Total de Acessos': 'Quantidade'},
-        template="plotly_dark"
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- TABELA DE LOGS ---
-    st.subheader("📋 Detalhes dos Acessos (Fuso Brasília)")
-    
-    # Formatando para exibição
-    df_display = df_filtrado.copy()
-    df_display['data_br'] = df_display['data_br'].dt.strftime('%d/%m/%Y %H:%M:%S')
-    
-    st.dataframe(
-        df_display[['id_acesso', 'data_br', 'dispositivo', 'navegador', 'ip', 'pagina', 'acao', 'duracao']], 
-        use_container_width=True,
-        hide_index=True
-    )
+        fig = px.line(
+            acessos_por_dia, 
+            x='data_dia', 
+            y='Total de Acessos',
+            markers=True,
+            text='Total de Acessos',
+            labels={'data_dia': 'Dia', 'Total de Acessos': 'Quantidade de Acessos'},
+            template="plotly_dark"
+        )
+        
+        fig.update_traces(textposition="top center", line_color='#00d1b2')
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Métrica simples de resumo
+        total_mes = df_filtrado.shape[0]
+        st.metric("Total de Acessos no Mês Selecionado", total_mes)
+    else:
+        st.warning("Não há dados para o período selecionado.")
 
 else:
-    st.info("Nenhum dado encontrado para exibir.")
-
-# Créditos e Link WhatsApp (conforme solicitado)
-st.sidebar.markdown("---")
-whatsapp_link = f"https://wa.me/5511977019335?text=Olá%20Rodrigo,%20vi%20o%20dashboard%20de%20acessos%20e%20gostaria%20de%20falar%20sobre%20o%20projeto."
-st.sidebar.markdown(f"[📩 Contato via WhatsApp]({whatsapp_link})")
+    st.info("Nenhum registro de acesso encontrado no banco de dados.")
