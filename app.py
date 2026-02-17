@@ -50,7 +50,6 @@ if df.empty:
     st.warning("Nenhum dado encontrado na tabela 'controle_acesso_site'.")
 else:
     # --- INDICADORES PRINCIPAIS (KPIs) ---
-    # Multiplicando por 4200 conforme solicitado
     total_raw = len(df) * 4200
     total_acessos = format_brl(total_raw)
     
@@ -71,10 +70,13 @@ else:
     with col_grafico:
         st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
         if 'pagina' in df.columns:
-            # Agrupa e aplica a multiplicação por 4200 nos dados do gráfico também
+            # Agrupa e aplica a multiplicação
             top_paginas = df['pagina'].value_counts().reset_index()
             top_paginas.columns = ['Página', 'Contagem']
             top_paginas['Acessos'] = top_paginas['Contagem'] * 4200
+            
+            # Ordena para o maior valor aparecer em cima
+            top_paginas = top_paginas.sort_values(by='Acessos', ascending=True)
             
             fig_paginas = px.bar(
                 top_paginas, 
@@ -84,10 +86,14 @@ else:
                 template="plotly_dark", 
                 color='Acessos',
                 color_continuous_scale='Viridis',
-                text_auto='.2s' # Adiciona o valor formatado nas barras
+                text_auto='.2s'
             )
             
-            # Ajuste para garantir que o separador de milhar apareça no eixo X do gráfico
-            fig_paginas.update_layout(xaxis_tickformat=',.2f')
+            # Ajustes visuais: Inverter eixo Y e remover o rótulo "Página"
+            fig_paginas.update_layout(
+                xaxis_tickformat=',.2f',
+                yaxis={'title': None}, # Remove o rótulo "Página"
+                showlegend=False
+            )
             
             st.plotly_chart(fig_paginas, use_container_width=True)
