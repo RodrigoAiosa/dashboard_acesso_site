@@ -68,17 +68,9 @@ else:
     col3.metric("Última Atualização", datetime.now().strftime("%H:%M:%S"))
 
     # --- GRÁFICOS ---
-    c1, c2 = st.columns(2)
+    c1 = st.columns(1)
 
     with c1:
-        st.subheader("📈 Evolução Diária de Acessos")
-        df['data'] = df['data_hora'].dt.date
-        acessos_dia = df.groupby('data').size().reset_index(name='quantidade')
-        fig_evolucao = px.line(acessos_dia, x='data', y='quantidade', markers=True, 
-                               template="plotly_dark", color_discrete_sequence=['#00CC96'])
-        st.plotly_chart(fig_evolucao, use_container_width=True)
-
-    with c2:
         st.subheader("🌍 Origem dos Acessos (Principais Páginas/Rotas)")
         if 'pagina' in df.columns:
             top_paginas = df['pagina'].value_counts().reset_index()
