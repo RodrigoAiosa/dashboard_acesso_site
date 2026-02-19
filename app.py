@@ -26,10 +26,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         border: 1px solid #31333f;
     }
-    .plot-container {
-        border-radius: 15px;
-        padding: 10px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -78,7 +74,7 @@ def get_data():
 
 # --- HEADER ---
 st.title("📊 SkyData Analytics")
-st.markdown("#### Inteligência de dados para performance digital em tempo real.")
+st.markdown("#### Monitoramento Geográfico de Acessos em Tempo Real")
 st.write("---")
 
 df_raw = get_data()
@@ -87,7 +83,7 @@ if df_raw.empty:
     st.warning("Aguardando dados da SkyData Solution...")
 else:
     # --- FILTROS ---
-    st.sidebar.header("🔍 Filtros de Visualização")
+    st.sidebar.header("🔍 Filtros")
     anos = sorted(df_raw['Ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + list(anos))
     
@@ -112,83 +108,57 @@ else:
     with col2:
         st.metric("Usuários Únicos", f"{usuarios_unicos_calc:,.0f}".replace(',', '.'))
     with col3:
-        st.metric("Atualizado em", agora_br)
+        st.metric("Última Atualização", agora_br)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- SIMULAÇÃO DE DISTRIBUIÇÃO GEOGRÁFICA ---
-    # Estados por região para o cálculo
-    sul_sudeste = ['SP', 'RJ', 'MG', 'ES', 'PR', 'SC', 'RS']
+    # --- LÓGICA DE DISTRIBUIÇÃO GEOGRÁFICA (SIMULAÇÃO) ---
+    estados_sul_sudeste = ['SP', 'RJ', 'MG', 'ES', 'PR', 'SC', 'RS']
     outros_estados = [
         'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'GO', 'MA', 'MT', 'MS', 
         'PA', 'PB', 'PE', 'PI', 'RN', 'RO', 'RR', 'SE', 'TO'
     ]
 
-    # Cálculo da distribuição (64% Sul/Sudeste | 36% Outros)
-    vol_sul_sudeste = total_acessos_calc * 0.64
-    vol_outros = total_acessos_calc * 0.36
+    # Distribuição 64% / 36%
+    acessos_sul_sudeste = (total_acessos_calc * 0.64) / len(estados_sul_sudeste)
+    acessos_outros = (total_acessos_calc * 0.36) / len(outros_estados)
 
-    # Criando DataFrame para o Mapa
-    data_mapa = []
-    for estado in sul_sudeste:
-        data_mapa.append({'UF': estado, 'Acessos': vol_sul_sudeste / len(sul_sudeste)})
-    for estado in outros_estados:
-        data_mapa.append({'UF': estado, 'Acessos': vol_outros / len(outros_estados)})
+    dados_mapa = []
+    for uf in estados_sul_sudeste:
+        dados_mapa.append({'UF': uf, 'Acessos': acessos_sul_sudeste})
+    for uf in outros_estados:
+        dados_mapa.append({'UF': uf, 'Acessos': acessos_outros})
     
-    df_mapa = pd.DataFrame(data_mapa)
+    df_mapa = pd.DataFrame(dados_mapa)
 
-    # --- LAYOUT DE GRÁFICOS ---
-    col_map, col_bar = st.columns([1.2, 1])
+    # --- GRÁFICO DE MAPA ---
+    st.subheader("🗺️ Densidade de Acessos por Estado")
+    
+    fig_mapa = px.choropleth(
+        df_mapa,
+        geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
+        locations='UF',
+        color='Acessos',
+        featureidkey="properties.sigla",
+        color_continuous_scale="Viridis",
+        scope="south america",
+        template="plotly_dark",
+        hover_name='UF',
+        labels={'Acessos': 'Visitas Estimadas'}
+    )
+    
+    fig_mapa.update_geos(fitbounds="locations", visible=False)
+    fig_mapa.update_layout(
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=600,
+        paper_bgcolor="rgba(0,0,0,0)",
+        coloraxis_colorbar=dict(title="Acessos", tickformat=",.0f")
+    )
+    
+    st.plotly_chart(fig_mapa, use_container_width=True)
 
-    with col_map:
-        st.subheader("🗺️ Distribuição Geográfica (Brasil)")
-        fig_mapa = px.choropleth(
-            df_mapa,
-            geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
-            locations='UF',
-            color='Acessos',
-            featureidkey="properties.sigla",
-            color_continuous_scale="Viridis",
-            scope="south america",
-            template="plotly_dark"
-        )
-        fig_mapa.update_geos(fitbounds="locations", visible=False)
-        fig_mapa.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            coloraxis_showscale=False,
-            paper_bgcolor="rgba(0,0,0,0)"
-        )
-        st.plotly_chart(fig_mapa, use_container_width=True)
-
-    with col_bar:
-        st.subheader("🌍 Origem por Canal/Página")
-        if 'pagina' in df.columns:
-            top_paginas = df['pagina'].value_counts().reset_index()
-            top_paginas.columns = ['Página', 'Acessos']
-            top_paginas['Acessos'] = top_paginas['Acessos'] * num
-            
-            total_geral = top_paginas['Acessos'].sum()
-            top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
-            
-            top_paginas['label'] = top_paginas.apply(
-                lambda x: f"{x['Acessos']:,.0f}".replace(',', '.') + f" ({x['Porcentagem']:.1f}%)", axis=1
-            )
-            
-            fig_paginas = px.bar(top_paginas, x='Acessos', y='Página',
-                                 orientation='h',
-                                 template="plotly_dark", color='Acessos',
-                                 color_continuous_scale='Viridis',
-                                 text='label')
-            
-            fig_paginas.update_traces(textposition='inside')
-            fig_paginas.update_layout(
-                xaxis_title=None, 
-                yaxis_title=None,
-                margin=dict(l=20, r=20, t=20, b=20),
-                paper_bgcolor="rgba(0,0,0,0)",
-                showlegend=False,
-                coloraxis_showscale=False
-            )
-            st.plotly_chart(fig_paginas, use_container_width=True)
+    # --- TABELA DE APOIO ---
+    with st.expander("Ver detalhes por Região"):
+        st.dataframe(df_mapa.sort_values(by="Acessos", ascending=False), use_container_width=True)
 
 st.markdown("<div style='text-align: center; color: #555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
