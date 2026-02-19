@@ -106,7 +106,9 @@ else:
     # --- INDICADORES (KPIs) ---
     total_acessos_calc = len(df) * num
     usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * num
-    agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
+    
+    # Modificação solicitada: Data e Hora atual fuso Brasil
+    agora_br = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
 
     col1, col2, col3 = st.columns(3)
     with col1:
