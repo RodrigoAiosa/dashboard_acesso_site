@@ -26,6 +26,11 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         border: 1px solid #31333f;
     }
+    /* Estilização dos containers de gráfico */
+    .plot-container {
+        border-radius: 15px;
+        padding: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -56,6 +61,7 @@ def get_data():
                 df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
             df['data_hora'] = df['data_hora'].dt.tz_localize(None)
             
+            # Auxiliares de tempo
             df['Ano'] = df['data_hora'].dt.year
             df['Mes_Nome'] = df['data_hora'].dt.strftime('%B')
             meses_traducao = {
@@ -74,7 +80,7 @@ def get_data():
 
 # --- HEADER ---
 st.title("📊 SkyData Analytics")
-st.markdown("#### Monitoramento Geográfico de Acessos em Tempo Real")
+st.markdown("#### Inteligência de dados para performance digital em tempo real.")
 st.write("---")
 
 df_raw = get_data()
@@ -82,8 +88,8 @@ df_raw = get_data()
 if df_raw.empty:
     st.warning("Aguardando dados da SkyData Solution...")
 else:
-    # --- FILTROS ---
-    st.sidebar.header("🔍 Filtros")
+    # --- FILTROS NO MENU LATERAL ---
+    st.sidebar.header("🔍 Filtros de Visualização")
     anos = sorted(df_raw['Ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + list(anos))
     
@@ -97,7 +103,7 @@ else:
     if mes_selecionado != "Todos":
         df = df[df['Mês'] == mes_selecionado]
 
-    # --- KPIs ---
+    # --- INDICADORES (KPIs) ---
     total_acessos_calc = len(df) * num
     usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * num
     agora_br = datetime.now(fuso_br).strftime("%H:%M:%S")
@@ -108,57 +114,42 @@ else:
     with col2:
         st.metric("Usuários Únicos", f"{usuarios_unicos_calc:,.0f}".replace(',', '.'))
     with col3:
-        st.metric("Última Atualização", agora_br)
+        st.metric("Atualizado em", agora_br)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- LÓGICA DE DISTRIBUIÇÃO GEOGRÁFICA (SIMULAÇÃO) ---
-    estados_sul_sudeste = ['SP', 'RJ', 'MG', 'ES', 'PR', 'SC', 'RS']
-    outros_estados = [
-        'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'GO', 'MA', 'MT', 'MS', 
-        'PA', 'PB', 'PE', 'PI', 'RN', 'RO', 'RR', 'SE', 'TO'
-    ]
-
-    # Distribuição 64% / 36%
-    acessos_sul_sudeste = (total_acessos_calc * 0.64) / len(estados_sul_sudeste)
-    acessos_outros = (total_acessos_calc * 0.36) / len(outros_estados)
-
-    dados_mapa = []
-    for uf in estados_sul_sudeste:
-        dados_mapa.append({'UF': uf, 'Acessos': acessos_sul_sudeste})
-    for uf in outros_estados:
-        dados_mapa.append({'UF': uf, 'Acessos': acessos_outros})
-    
-    df_mapa = pd.DataFrame(dados_mapa)
-
-    # --- GRÁFICO DE MAPA ---
-    st.subheader("🗺️ Densidade de Acessos por Estado")
-    
-    fig_mapa = px.choropleth(
-        df_mapa,
-        geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
-        locations='UF',
-        color='Acessos',
-        featureidkey="properties.sigla",
-        color_continuous_scale="Viridis",
-        scope="south america",
-        template="plotly_dark",
-        hover_name='UF',
-        labels={'Acessos': 'Visitas Estimadas'}
-    )
-    
-    fig_mapa.update_geos(fitbounds="locations", visible=False)
-    fig_mapa.update_layout(
-        margin=dict(l=0, r=0, t=10, b=0),
-        height=600,
-        paper_bgcolor="rgba(0,0,0,0)",
-        coloraxis_colorbar=dict(title="Acessos", tickformat=",.0f")
-    )
-    
-    st.plotly_chart(fig_mapa, use_container_width=True)
-
-    # --- TABELA DE APOIO ---
-    with st.expander("Ver detalhes por Região"):
-        st.dataframe(df_mapa.sort_values(by="Acessos", ascending=False), use_container_width=True)
+    # --- GRÁFICO DE ORIGEM (ÚNICO GRÁFICO EXIBIDO) ---
+    if not df.empty:
+        st.subheader("🌍 Origem por Canal/Página")
+        if 'pagina' in df.columns:
+            top_paginas = df['pagina'].value_counts().reset_index()
+            top_paginas.columns = ['Página', 'Acessos']
+            top_paginas['Acessos'] = top_paginas['Acessos'] * num
+            
+            # Cálculo de porcentagem
+            total_geral = top_paginas['Acessos'].sum()
+            top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
+            
+            # Formatação do rótulo: "Valor (Percentual%)"
+            top_paginas['label'] = top_paginas.apply(
+                lambda x: f"{x['Acessos']:,.0f}".replace(',', '.') + f" ({x['Porcentagem']:.1f}%)", axis=1
+            )
+            
+            fig_paginas = px.bar(top_paginas, x='Página', y='Acessos',
+                                 template="plotly_dark", color='Acessos',
+                                 color_continuous_scale='Viridis',
+                                 text='label')
+            
+            fig_paginas.update_traces(textposition='outside')
+            fig_paginas.update_layout(
+                xaxis_title=None, 
+                yaxis_title=None,
+                margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="rgba(0,0,0,0)",
+                showlegend=False
+            )
+            st.plotly_chart(fig_paginas, use_container_width=True)
+    else:
+        st.info("Nenhum dado encontrado para o período selecionado.")
 
 st.markdown("<div style='text-align: center; color: #555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
