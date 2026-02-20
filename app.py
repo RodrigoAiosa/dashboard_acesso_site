@@ -26,10 +26,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         border: 1px solid #31333f;
     }
-    .plot-container {
-        border-radius: 15px;
-        padding: 10px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,6 +58,7 @@ def get_data():
             
             # Auxiliares de tempo
             df['Ano'] = df['data_hora_sem_tz'].dt.year
+            df['Dia'] = df['data_hora_sem_tz'].dt.day
             df['Mes_Nome'] = df['data_hora_sem_tz'].dt.strftime('%B')
             meses_traducao = {
                 'January': 'Janeiro', 'February': 'Fevereiro', 'March': 'Março',
@@ -117,62 +114,64 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # --- GRÁFICO DE LINHAS (EVOLUÇÃO MENSAL 1 A 31) ---
+    st.subheader("📈 Evolução de Acessos por Dia")
+    
+    # Agrupando por dia e contando acessos
+    acessos_por_dia = df.groupby('Dia').size().reset_index(name='Acessos')
+    
+    # Criando um esqueleto de 1 a 31 para garantir que todos os dias apareçam no gráfico
+    dias_cheios = pd.DataFrame({'Dia': list(range(1, 32))})
+    df_evolucao = pd.merge(dias_cheios, acessos_por_dia, on='Dia', how='left').fillna(0)
+    df_evolucao['Acessos'] = df_evolucao['Acessos'] * num
+
+    fig_linha = px.line(df_evolucao, x='Dia', y='Acessos', 
+                        template="plotly_dark",
+                        markers=True,
+                        line_shape="spline",
+                        color_discrete_sequence=['#00CC96'])
+    
+    fig_linha.update_layout(
+        xaxis=dict(tickmode='linear', tick0=1, dtick=1),
+        yaxis_title=None,
+        xaxis_title="Dia do Mês",
+        margin=dict(l=20, r=20, t=20, b=20),
+        paper_bgcolor="rgba(0,0,0,0)"
+    )
+    st.plotly_chart(fig_linha, use_container_width=True)
+
     # --- GRÁFICO DE ORIGEM ---
-    if not df.empty:
+    if 'pagina' in df.columns:
         st.subheader("🌍 Origem por Canal/Página")
-        if 'pagina' in df.columns:
-            top_paginas = df['pagina'].value_counts().reset_index()
-            top_paginas.columns = ['Página', 'Acessos']
-            top_paginas['Acessos'] = top_paginas['Acessos'] * num
-            
-            total_geral = top_paginas['Acessos'].sum()
-            top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
-            
-            top_paginas['label'] = top_paginas.apply(
-                lambda x: f"{x['Acessos']:,.0f}".replace(',', '.') + f" ({x['Porcentagem']:.1f}%)", axis=1
-            )
-            
-            fig_paginas = px.bar(top_paginas, x='Página', y='Acessos',
-                                 template="plotly_dark", color='Acessos',
-                                 color_continuous_scale='Viridis',
-                                 text='label')
-            
-            fig_paginas.update_traces(textposition='outside')
-            fig_paginas.update_layout(
-                xaxis_title=None, 
-                yaxis_title=None,
-                margin=dict(l=20, r=20, t=20, b=20),
-                paper_bgcolor="rgba(0,0,0,0)",
-                showlegend=False
-            )
-            st.plotly_chart(fig_paginas, use_container_width=True)
-
-        # --- TABELA DE DADOS DETALHADOS (NOVA SEÇÃO) ---
-        st.markdown("---")
-        st.subheader("📋 Relatório Detalhado de Acessos")
+        top_paginas = df['pagina'].value_counts().reset_index()
+        top_paginas.columns = ['Página', 'Acessos']
+        top_paginas['Acessos'] = top_paginas['Acessos'] * num
         
-        # Preparando DataFrame para exibição (removendo colunas auxiliares se desejar)
-        df_view = df.copy()
+        total_geral = top_paginas['Acessos'].sum()
+        top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
+        top_paginas['label'] = top_paginas.apply(lambda x: f"{x['Acessos']:,.0f} ({x['Porcentagem']:.1f}%)", axis=1)
         
-        # Formatando a data para exibição brasileira na tabela
-        if 'data_hora_sem_tz' in df_view.columns:
-            df_view['Data/Hora'] = df_view['data_hora_sem_tz'].dt.strftime('%d/%m/%Y %H:%M:%S')
-            # Opcional: Remover colunas internas de suporte para limpar a tabela
-            cols_to_drop = ['data_hora', 'data_hora_sem_tz', 'Ano', 'Mes_Nome', 'Mês']
-            df_view = df_view.drop(columns=[c for c in cols_to_drop if c in df_view.columns])
+        fig_paginas = px.bar(top_paginas, x='Página', y='Acessos',
+                             template="plotly_dark", color='Acessos',
+                             color_continuous_scale='Viridis', text='label')
         
-        # Reordenando para colocar Data/Hora no início, se existir
-        if 'Data/Hora' in df_view.columns:
-            cols = ['Data/Hora'] + [c for c in df_view.columns if c != 'Data/Hora']
-            df_view = df_view[cols]
+        fig_paginas.update_traces(textposition='outside')
+        fig_paginas.update_layout(xaxis_title=None, yaxis_title=None, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", showlegend=False)
+        st.plotly_chart(fig_paginas, use_container_width=True)
 
-        st.dataframe(
-            df_view,
-            use_container_width=True,
-            hide_index=True
-        )
+    # --- TABELA DE DADOS DETALHADOS ---
+    st.markdown("---")
+    st.subheader("📋 Relatório Detalhado de Acessos")
+    df_view = df.copy()
+    if 'data_hora_sem_tz' in df_view.columns:
+        df_view['Data/Hora'] = df_view['data_hora_sem_tz'].dt.strftime('%d/%m/%Y %H:%M:%S')
+        cols_to_drop = ['data_hora', 'data_hora_sem_tz', 'Ano', 'Mes_Nome', 'Mês', 'Dia']
+        df_view = df_view.drop(columns=[c for c in cols_to_drop if c in df_view.columns])
+    
+    if 'Data/Hora' in df_view.columns:
+        cols = ['Data/Hora'] + [c for c in df_view.columns if c != 'Data/Hora']
+        df_view = df_view[cols]
 
-    else:
-        st.info("Nenhum dado encontrado para o período selecionado.")
+    st.dataframe(df_view, use_container_width=True, hide_index=True)
 
 st.markdown("<div style='text-align: center; color: #555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
