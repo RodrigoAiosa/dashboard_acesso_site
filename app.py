@@ -26,7 +26,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         border: 1px solid #31333f;
     }
-    /* Estilização dos containers de gráfico */
     .plot-container {
         border-radius: 15px;
         padding: 10px;
@@ -59,11 +58,11 @@ def get_data():
                 df['data_hora'] = df['data_hora'].dt.tz_localize('UTC').dt.tz_convert(fuso_br)
             else:
                 df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
-            df['data_hora'] = df['data_hora'].dt.tz_localize(None)
+            df['data_hora_sem_tz'] = df['data_hora'].dt.tz_localize(None)
             
             # Auxiliares de tempo
-            df['Ano'] = df['data_hora'].dt.year
-            df['Mes_Nome'] = df['data_hora'].dt.strftime('%B')
+            df['Ano'] = df['data_hora_sem_tz'].dt.year
+            df['Mes_Nome'] = df['data_hora_sem_tz'].dt.strftime('%B')
             meses_traducao = {
                 'January': 'Janeiro', 'February': 'Fevereiro', 'March': 'Março',
                 'April': 'Abril', 'May': 'Maio', 'June': 'Junho',
@@ -106,8 +105,6 @@ else:
     # --- INDICADORES (KPIs) ---
     total_acessos_calc = len(df) * num
     usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * num
-    
-    # Modificação solicitada: Data e Hora atual fuso Brasil
     agora_br = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
 
     col1, col2, col3 = st.columns(3)
@@ -120,7 +117,7 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- GRÁFICO DE ORIGEM (ÚNICO GRÁFICO EXIBIDO) ---
+    # --- GRÁFICO DE ORIGEM ---
     if not df.empty:
         st.subheader("🌍 Origem por Canal/Página")
         if 'pagina' in df.columns:
@@ -128,11 +125,9 @@ else:
             top_paginas.columns = ['Página', 'Acessos']
             top_paginas['Acessos'] = top_paginas['Acessos'] * num
             
-            # Cálculo de porcentagem
             total_geral = top_paginas['Acessos'].sum()
             top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
             
-            # Formatação do rótulo: "Valor (Percentual%)"
             top_paginas['label'] = top_paginas.apply(
                 lambda x: f"{x['Acessos']:,.0f}".replace(',', '.') + f" ({x['Porcentagem']:.1f}%)", axis=1
             )
@@ -151,6 +146,32 @@ else:
                 showlegend=False
             )
             st.plotly_chart(fig_paginas, use_container_width=True)
+
+        # --- TABELA DE DADOS DETALHADOS (NOVA SEÇÃO) ---
+        st.markdown("---")
+        st.subheader("📋 Relatório Detalhado de Acessos")
+        
+        # Preparando DataFrame para exibição (removendo colunas auxiliares se desejar)
+        df_view = df.copy()
+        
+        # Formatando a data para exibição brasileira na tabela
+        if 'data_hora_sem_tz' in df_view.columns:
+            df_view['Data/Hora'] = df_view['data_hora_sem_tz'].dt.strftime('%d/%m/%Y %H:%M:%S')
+            # Opcional: Remover colunas internas de suporte para limpar a tabela
+            cols_to_drop = ['data_hora', 'data_hora_sem_tz', 'Ano', 'Mes_Nome', 'Mês']
+            df_view = df_view.drop(columns=[c for c in cols_to_drop if c in df_view.columns])
+        
+        # Reordenando para colocar Data/Hora no início, se existir
+        if 'Data/Hora' in df_view.columns:
+            cols = ['Data/Hora'] + [c for c in df_view.columns if c != 'Data/Hora']
+            df_view = df_view[cols]
+
+        st.dataframe(
+            df_view,
+            use_container_width=True,
+            hide_index=True
+        )
+
     else:
         st.info("Nenhum dado encontrado para o período selecionado.")
 
