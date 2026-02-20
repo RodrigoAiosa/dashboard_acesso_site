@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÕES DE PÁGINA ---
 st.set_page_config(page_title="SkyData | Analytics Portal", layout="wide", initial_sidebar_state="expanded")
 
-num = 424
+num = 1
 st.markdown("""
     <style>
     .main {
@@ -56,7 +56,6 @@ def get_data():
                 df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
             df['data_hora_sem_tz'] = df['data_hora'].dt.tz_localize(None)
             
-            # Auxiliares de tempo
             df['Ano'] = df['data_hora_sem_tz'].dt.year
             df['Dia'] = df['data_hora_sem_tz'].dt.day
             df['Mes_Nome'] = df['data_hora_sem_tz'].dt.strftime('%B')
@@ -74,7 +73,6 @@ def get_data():
     finally:
         if conn: conn.close()
 
-# --- HEADER ---
 st.title("📊 SkyData Analytics")
 st.markdown("#### Inteligência de dados para performance digital em tempo real.")
 st.write("---")
@@ -84,7 +82,6 @@ df_raw = get_data()
 if df_raw.empty:
     st.warning("Aguardando dados da SkyData Solution...")
 else:
-    # --- FILTROS NO MENU LATERAL ---
     st.sidebar.header("🔍 Filtros de Visualização")
     anos = sorted(df_raw['Ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + list(anos))
@@ -99,7 +96,6 @@ else:
     if mes_selecionado != "Todos":
         df = df[df['Mês'] == mes_selecionado]
 
-    # --- INDICADORES (KPIs) ---
     total_acessos_calc = len(df) * num
     usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * num
     agora_br = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
@@ -114,13 +110,10 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- GRÁFICO DE LINHAS (EVOLUÇÃO MENSAL 1 A 31) ---
+    # --- GRÁFICO DE LINHAS (CORREÇÃO DE EIXOS) ---
     st.subheader("📈 Evolução de Acessos por Dia")
     
-    # Agrupando por dia e contando acessos
     acessos_por_dia = df.groupby('Dia').size().reset_index(name='Acessos')
-    
-    # Criando um esqueleto de 1 a 31 para garantir que todos os dias apareçam no gráfico
     dias_cheios = pd.DataFrame({'Dia': list(range(1, 32))})
     df_evolucao = pd.merge(dias_cheios, acessos_por_dia, on='Dia', how='left').fillna(0)
     df_evolucao['Acessos'] = df_evolucao['Acessos'] * num
@@ -128,12 +121,23 @@ else:
     fig_linha = px.line(df_evolucao, x='Dia', y='Acessos', 
                         template="plotly_dark",
                         markers=True,
-                        line_shape="spline",
                         color_discrete_sequence=['#00CC96'])
     
     fig_linha.update_layout(
-        xaxis=dict(tickmode='linear', tick0=1, dtick=1),
-        yaxis_title=None,
+        # Fixa o eixo X para ir de 1 a 31 exatamente
+        xaxis=dict(
+            tickmode='linear', 
+            tick0=1, 
+            dtick=1, 
+            range=[1, 31],
+            fixedrange=True
+        ),
+        # Fixa o eixo Y para nunca ser menor que 0
+        yaxis=dict(
+            rangemode="nonnegative",
+            gridcolor="#31333f"
+        ),
+        yaxis_title="Qtd Acessos",
         xaxis_title="Dia do Mês",
         margin=dict(l=20, r=20, t=20, b=20),
         paper_bgcolor="rgba(0,0,0,0)"
@@ -156,7 +160,14 @@ else:
                              color_continuous_scale='Viridis', text='label')
         
         fig_paginas.update_traces(textposition='outside')
-        fig_paginas.update_layout(xaxis_title=None, yaxis_title=None, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)", showlegend=False)
+        fig_paginas.update_layout(
+            yaxis=dict(rangemode="nonnegative"),
+            xaxis_title=None, 
+            yaxis_title=None, 
+            margin=dict(l=20, r=20, t=20, b=20), 
+            paper_bgcolor="rgba(0,0,0,0)", 
+            showlegend=False
+        )
         st.plotly_chart(fig_paginas, use_container_width=True)
 
     # --- TABELA DE DADOS DETALHADOS ---
