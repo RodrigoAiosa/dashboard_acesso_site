@@ -40,7 +40,7 @@ st.markdown("""
 
 # --- TELA DE LOGIN ---
 USUARIOS = {
-    "admin": "skydata2026",
+    "aiosa": "@iosa31R",
     "skydata": "senha123"
 }
 
