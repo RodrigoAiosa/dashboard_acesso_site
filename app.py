@@ -26,8 +26,45 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         border: 1px solid #31333f;
     }
+    .login-box {
+        max-width: 400px;
+        margin: 80px auto;
+        padding: 40px;
+        background-color: #1e2130;
+        border-radius: 20px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        border: 1px solid #31333f;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+# --- TELA DE LOGIN ---
+USUARIOS = {
+    "admin": "skydata2026",
+    "skydata": "senha123"
+}
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col_l, col_center, col_r = st.columns([1, 1.2, 1])
+    with col_center:
+        st.markdown("## 🔐 SkyData | Acesso Restrito")
+        st.markdown("---")
+        usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
+        senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        if st.button("Entrar", use_container_width=True):
+            if usuario in USUARIOS and USUARIOS[usuario] == senha:
+                st.session_state.autenticado = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
+        st.markdown("<div style='text-align:center; color:#555; margin-top:20px;'>© 2026 SkyData Solution</div>", unsafe_allow_html=True)
+    st.stop()
+
+# --- DASHBOARD (sem nenhuma alteração) ---
 
 # Configurações do banco de dados
 DB_CONFIG = {
@@ -75,6 +112,14 @@ def get_data():
 
 st.title("📊 SkyData Analytics")
 st.markdown("#### Inteligência de dados para performance digital em tempo real.")
+
+# Botão de logout na sidebar
+with st.sidebar:
+    st.markdown("---")
+    if st.button("🚪 Sair"):
+        st.session_state.autenticado = False
+        st.rerun()
+
 st.write("---")
 
 df_raw = get_data()
@@ -124,7 +169,6 @@ else:
                         color_discrete_sequence=['#00CC96'])
     
     fig_linha.update_layout(
-        # Fixa o eixo X para ir de 1 a 31 exatamente
         xaxis=dict(
             tickmode='linear', 
             tick0=1, 
@@ -132,7 +176,6 @@ else:
             range=[1, 31],
             fixedrange=True
         ),
-        # Fixa o eixo Y para nunca ser menor que 0
         yaxis=dict(
             rangemode="nonnegative",
             gridcolor="#31333f"
