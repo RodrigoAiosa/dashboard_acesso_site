@@ -11,9 +11,7 @@ st.set_page_config(page_title="SkyData | Analytics Portal", layout="wide", initi
 num = 42
 st.markdown("""
     <style>
-    .main {
-        background-color: #0e1117;
-    }
+    .main { background-color: #0e1117; }
     div[data-testid="stMetricValue"] {
         font-size: 2.2rem;
         font-weight: 700;
@@ -26,21 +24,12 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         border: 1px solid #31333f;
     }
-    .login-box {
-        max-width: 400px;
-        margin: 80px auto;
-        padding: 40px;
-        background-color: #1e2130;
-        border-radius: 20px;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-        border: 1px solid #31333f;
-    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- TELA DE LOGIN ---
 USUARIOS = {
-    "aiosa": "@iosa31R",
+    "aiosa":   "@iosa31R",
     "skydata": "senha123"
 }
 
@@ -54,7 +43,7 @@ if not st.session_state.autenticado:
         st.markdown("## 🔐 SkyData | Acesso Restrito")
         st.markdown("---")
         usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
-        senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        senha   = st.text_input("Senha", type="password", placeholder="Digite sua senha")
         if st.button("Entrar", use_container_width=True):
             if usuario in USUARIOS and USUARIOS[usuario] == senha:
                 st.session_state.autenticado = True
@@ -64,16 +53,15 @@ if not st.session_state.autenticado:
         st.markdown("<div style='text-align:center; color:#555; margin-top:20px;'>© 2026 SkyData Solution</div>", unsafe_allow_html=True)
     st.stop()
 
-# --- DASHBOARD (sem nenhuma alteração) ---
-
-# Configurações do banco de dados
+# --- CONEXÃO — SUPABASE (Session Pooler IPv4) ---
 DB_CONFIG = {
-    "host": "pg-2e2874e2-rodrigoaiosa-skydatasoluction.l.aivencloud.com",
-    "port": "13191",
-    "database": "defaultdb",
-    "user": "avnadmin",
-    "password": "AVNS_LlZukuJoh_0Kbj0dhvK", 
-    "sslmode": "require"
+    "host":            "aws-1-us-east-1.pooler.supabase.com",
+    "port":            "5432",
+    "database":        "postgres",
+    "user":            "postgres.hqkhtpwmciavtobsutph",
+    "password":        st.secrets.get("SUPABASE_PASSWORD", ""),
+    "sslmode":         "require",
+    "connect_timeout": 10,
 }
 
 fuso_br = pytz.timezone('America/Sao_Paulo')
@@ -82,9 +70,9 @@ def get_data():
     conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
-        query = "SELECT * FROM controle_acesso_site ORDER BY data_hora DESC;"
+        query = "SELECT * FROM registros_acesso ORDER BY data_hora DESC;"
         df = pd.read_sql(query, conn)
-        
+
         if not df.empty and 'data_hora' in df.columns:
             df['data_hora'] = pd.to_datetime(df['data_hora'])
             if df['data_hora'].dt.tz is None:
@@ -92,15 +80,15 @@ def get_data():
             else:
                 df['data_hora'] = df['data_hora'].dt.tz_convert(fuso_br)
             df['data_hora_sem_tz'] = df['data_hora'].dt.tz_localize(None)
-            
-            df['Ano'] = df['data_hora_sem_tz'].dt.year
-            df['Dia'] = df['data_hora_sem_tz'].dt.day
+
+            df['Ano']      = df['data_hora_sem_tz'].dt.year
+            df['Dia']      = df['data_hora_sem_tz'].dt.day
             df['Mes_Nome'] = df['data_hora_sem_tz'].dt.strftime('%B')
             meses_traducao = {
                 'January': 'Janeiro', 'February': 'Fevereiro', 'March': 'Março',
-                'April': 'Abril', 'May': 'Maio', 'June': 'Junho',
-                'July': 'Julho', 'August': 'Agosto', 'September': 'Setembro',
-                'October': 'Outubro', 'November': 'Novembro', 'December': 'Dezembro'
+                'April': 'Abril',     'May': 'Maio',           'June': 'Junho',
+                'July': 'Julho',      'August': 'Agosto',      'September': 'Setembro',
+                'October': 'Outubro', 'November': 'Novembro',  'December': 'Dezembro'
             }
             df['Mês'] = df['Mes_Nome'].map(meses_traducao)
         return df
@@ -108,12 +96,13 @@ def get_data():
         st.error(f"Erro na conexão: {e}")
         return pd.DataFrame()
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
+# --- DASHBOARD ---
 st.title("📊 SkyData Analytics")
 st.markdown("#### Inteligência de dados para performance digital em tempo real.")
 
-# Botão de logout na sidebar
 with st.sidebar:
     st.markdown("---")
     if st.button("🚪 Sair"):
@@ -130,8 +119,8 @@ else:
     st.sidebar.header("🔍 Filtros de Visualização")
     anos = sorted(df_raw['Ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + list(anos))
-    
-    meses_ordem = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+
+    meses_ordem = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
     mes_selecionado = st.sidebar.selectbox("Mês", ["Todos"] + meses_ordem)
 
@@ -141,7 +130,7 @@ else:
     if mes_selecionado != "Todos":
         df = df[df['Mês'] == mes_selecionado]
 
-    total_acessos_calc = len(df) * num
+    total_acessos_calc  = len(df) * num
     usuarios_unicos_calc = (df['ip'].nunique() if 'ip' in df.columns else 0) * num
     agora_br = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
 
@@ -155,31 +144,19 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- GRÁFICO DE LINHAS (CORREÇÃO DE EIXOS) ---
+    # --- GRÁFICO DE LINHAS ---
     st.subheader("📈 Evolução de Acessos por Dia")
-    
     acessos_por_dia = df.groupby('Dia').size().reset_index(name='Acessos')
-    dias_cheios = pd.DataFrame({'Dia': list(range(1, 32))})
-    df_evolucao = pd.merge(dias_cheios, acessos_por_dia, on='Dia', how='left').fillna(0)
+    dias_cheios  = pd.DataFrame({'Dia': list(range(1, 32))})
+    df_evolucao  = pd.merge(dias_cheios, acessos_por_dia, on='Dia', how='left').fillna(0)
     df_evolucao['Acessos'] = df_evolucao['Acessos'] * num
 
-    fig_linha = px.line(df_evolucao, x='Dia', y='Acessos', 
-                        template="plotly_dark",
-                        markers=True,
+    fig_linha = px.line(df_evolucao, x='Dia', y='Acessos',
+                        template="plotly_dark", markers=True,
                         color_discrete_sequence=['#00CC96'])
-    
     fig_linha.update_layout(
-        xaxis=dict(
-            tickmode='linear', 
-            tick0=1, 
-            dtick=1, 
-            range=[1, 31],
-            fixedrange=True
-        ),
-        yaxis=dict(
-            rangemode="nonnegative",
-            gridcolor="#31333f"
-        ),
+        xaxis=dict(tickmode='linear', tick0=1, dtick=1, range=[1, 31], fixedrange=True),
+        yaxis=dict(rangemode="nonnegative", gridcolor="#31333f"),
         yaxis_title="Qtd Acessos",
         xaxis_title="Dia do Mês",
         margin=dict(l=20, r=20, t=20, b=20),
@@ -187,45 +164,68 @@ else:
     )
     st.plotly_chart(fig_linha, use_container_width=True)
 
-    # --- GRÁFICO DE ORIGEM ---
+    # --- GRÁFICO DE PÁGINAS ---
     if 'pagina' in df.columns:
         st.subheader("🌍 Origem por Canal/Página")
         top_paginas = df['pagina'].value_counts().reset_index()
         top_paginas.columns = ['Página', 'Acessos']
         top_paginas['Acessos'] = top_paginas['Acessos'] * num
-        
+
         total_geral = top_paginas['Acessos'].sum()
         top_paginas['Porcentagem'] = (top_paginas['Acessos'] / total_geral) * 100
-        top_paginas['label'] = top_paginas.apply(lambda x: f"{x['Acessos']:,.0f} ({x['Porcentagem']:.1f}%)", axis=1)
-        
+        top_paginas['label'] = top_paginas.apply(
+            lambda x: f"{x['Acessos']:,.0f} ({x['Porcentagem']:.1f}%)", axis=1
+        )
+
         fig_paginas = px.bar(top_paginas, x='Página', y='Acessos',
                              template="plotly_dark", color='Acessos',
                              color_continuous_scale='Viridis', text='label')
-        
         fig_paginas.update_traces(textposition='outside')
         fig_paginas.update_layout(
             yaxis=dict(rangemode="nonnegative"),
-            xaxis_title=None, 
-            yaxis_title=None, 
-            margin=dict(l=20, r=20, t=20, b=20), 
-            paper_bgcolor="rgba(0,0,0,0)", 
+            xaxis_title=None, yaxis_title=None,
+            margin=dict(l=20, r=20, t=20, b=20),
+            paper_bgcolor="rgba(0,0,0,0)",
             showlegend=False
         )
         st.plotly_chart(fig_paginas, use_container_width=True)
 
-    # --- TABELA DE DADOS DETALHADOS ---
+    # --- GRÁFICO DE DISPOSITIVOS ---
+    if 'dispositivo' in df.columns:
+        st.subheader("📱 Acessos por Dispositivo")
+        col_d, col_n = st.columns(2)
+
+        with col_d:
+            disp = df['dispositivo'].value_counts().reset_index()
+            disp.columns = ['Dispositivo', 'Acessos']
+            fig_disp = px.pie(disp, names='Dispositivo', values='Acessos',
+                              template="plotly_dark",
+                              color_discrete_sequence=px.colors.sequential.Viridis)
+            fig_disp.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_disp, use_container_width=True)
+
+        with col_n:
+            nav = df['navegador'].value_counts().reset_index()
+            nav.columns = ['Navegador', 'Acessos']
+            fig_nav = px.pie(nav, names='Navegador', values='Acessos',
+                             template="plotly_dark",
+                             color_discrete_sequence=px.colors.sequential.Plasma)
+            fig_nav.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_nav, use_container_width=True)
+
+    # --- TABELA DETALHADA ---
     st.markdown("---")
     st.subheader("📋 Relatório Detalhado de Acessos")
     df_view = df.copy()
     if 'data_hora_sem_tz' in df_view.columns:
         df_view['Data/Hora'] = df_view['data_hora_sem_tz'].dt.strftime('%d/%m/%Y %H:%M:%S')
-        cols_to_drop = ['data_hora', 'data_hora_sem_tz', 'Ano', 'Mes_Nome', 'Mês', 'Dia']
-        df_view = df_view.drop(columns=[c for c in cols_to_drop if c in df_view.columns])
-    
+        cols_drop = ['data_hora', 'data_hora_sem_tz', 'Ano', 'Mes_Nome', 'Mês', 'Dia']
+        df_view = df_view.drop(columns=[c for c in cols_drop if c in df_view.columns])
+
     if 'Data/Hora' in df_view.columns:
         cols = ['Data/Hora'] + [c for c in df_view.columns if c != 'Data/Hora']
         df_view = df_view[cols]
 
     st.dataframe(df_view, use_container_width=True, hide_index=True)
 
-st.markdown("<div style='text-align: center; color: #555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center; color:#555;'><br>© 2026 SkyData Solution - Analytics Privado</div>", unsafe_allow_html=True)
